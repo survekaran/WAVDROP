@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WAVDROP — Video to MP3</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: #2a2a3d;
+    --accent: #ff3c5f;
+    --accent2: #ff8c42;
+    --green: #00e5a0;
+    --text: #f0f0f8;
+    --muted: #6b6b8a;
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background noise/grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(255,60,95,0.03) 60px, rgba(255,60,95,0.03) 61px),
+      repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(255,60,95,0.03) 60px, rgba(255,60,95,0.03) 61px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow blobs */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob-1 { width: 500px; height: 500px; background: var(--accent); top: -200px; left: -200px; animation: drift 12s ease-in-out infinite; }
+  .blob-2 { width: 400px; height: 400px; background: var(--accent2); bottom: -150px; right: -150px; animation: drift 15s ease-in-out infinite reverse; }
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0,0) scale(1); }
+    50% { transform: translate(40px, 30px) scale(1.1); }
+  }
+
+  .container { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding: 40px 20px 80px; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 56px; }
+
+  .logo-mark {
+    display: inline-flex; align-items: center; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .logo-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .logo-text {
+    font-family: var(--font-display);
+    font-size: 2.8rem;
+    letter-spacing: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .tagline {
+    font-size: 0.95rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 300;
+  }
+
+  /* Tab switcher */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 5px;
+    margin-bottom: 28px;
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 11px 20px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .tab-btn.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+  }
+  .tab-btn:hover:not(.active) { color: var(--text); background: var(--surface2); }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* URL input */
+  .input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .url-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .url-input:focus { border-color: var(--accent); }
+  .url-input::placeholder { color: var(--muted); }
+
+  .btn-convert {
+    padding: 14px 28px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: transform 0.15s, opacity 0.2s;
+    white-space: nowrap;
+  }
+  .btn-convert:hover { transform: translateY(-1px); opacity: 0.9; }
+  .btn-convert:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Quality selector */
+  .quality-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 0;
+  }
+  .quality-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+  .quality-opts { display: flex; gap: 6px; }
+  .q-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: all 0.15s;
+  }
+  .q-btn.active { border-color: var(--green); color: var(--green); background: rgba(0,229,160,0.08); }
+  .q-btn:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 52px 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 20px;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(255,60,95,0.05);
+  }
+  .drop-icon { font-size: 3rem; margin-bottom: 14px; opacity: 0.7; }
+  .drop-title { font-size: 1.05rem; font-weight: 500; margin-bottom: 6px; }
+  .drop-sub { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+  .drop-sub span { color: var(--accent); }
+  #fileInput { display: none; }
+
+  .selected-file {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .selected-file.visible { display: flex; }
+  .file-icon { font-size: 1.6rem; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 0.9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-size { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .file-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.1rem; padding: 4px; }
+  .file-remove:hover { color: var(--accent); }
+
+  /* Progress */
+  .progress-area {
+    display: none;
+    margin-top: 28px;
+  }
+  .progress-area.visible { display: block; }
+
+  .progress-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .progress-status { font-size: 0.88rem; font-weight: 500; }
+  .progress-pct { font-family: var(--font-display); font-size: 1.2rem; color: var(--accent); }
+
+  .progress-bar {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* Result */
+  .result-box {
+    display: none;
+    margin-top: 28px;
+    background: rgba(0,229,160,0.07);
+    border: 1px solid rgba(0,229,160,0.25);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .result-box.visible { display: flex; align-items: center; gap: 16px; }
+  .result-icon { font-size: 2.2rem; }
+  .result-info { flex: 1; }
+  .result-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--green); margin-bottom: 4px; }
+  .result-name { font-size: 1rem; font-weight: 500; }
+  .btn-download {
+    padding: 11px 22px;
+    background: var(--green);
+    border: none;
+    border-radius: 10px;
+    color: #0a0a0f;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    white-space: nowrap;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-download:hover { opacity: 0.88; transform: translateY(-1px); }
+
+  /* Error */
+  .error-box {
+    display: none;
+    margin-top: 24px;
+    background: rgba(255,60,95,0.08);
+    border: 1px solid rgba(255,60,95,0.3);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 0.88rem;
+    color: #ff7090;
+  }
+  .error-box.visible { display: block; }
+
+  /* Supported formats */
+  .formats {
+    margin-top: 32px;
+    text-align: center;
+  }
+  .formats-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .format-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .format-tag {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: monospace;
+    letter-spacing: 0.5px;
+  }
+
+  /* Waveform animation for logo */
+  .wave-bars { display: flex; align-items: center; gap: 2px; height: 18px; }
+  .wave-bar {
+    width: 3px; background: white; border-radius: 2px;
+    animation: wave 1s ease-in-out infinite;
+  }
+  .wave-bar:nth-child(1) { height: 6px; animation-delay: 0s; }
+  .wave-bar:nth-child(2) { height: 14px; animation-delay: 0.1s; }
+  .wave-bar:nth-child(3) { height: 10px; animation-delay: 0.2s; }
+  .wave-bar:nth-child(4) { height: 18px; animation-delay: 0.3s; }
+  .wave-bar:nth-child(5) { height: 8px; animation-delay: 0.4s; }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.5); }
+    50% { transform: scaleY(1); }
+  }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    .card { padding: 22px 18px; }
+    .input-group { flex-direction: column; }
+    .result-box.visible { flex-direction: column; text-align: center; }
+    .logo-text { font-size: 2.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="container">
+  <header>
+    <div class="logo-mark">
+      <div class="logo-icon">
+        <div class="wave-bars">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+      </div>
+      <span class="logo-text">WAVDROP</span>
+    </div>
+    <p class="tagline">YouTube &amp; Video → MP3 Converter</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('url')">
+      <span>🔗</span> YouTube / URL
+    </button>
+    <button class="tab-btn" onclick="switchTab('file')">
+      <span>📁</span> Upload File
+    </button>
+  </div>
+
+  <div class="card">
+    <!-- URL Panel -->
+    <div class="tab-panel active" id="panel-url">
+      <div class="input-group">
+        <input type="text" class="url-input" id="urlInput"
+          placeholder="Paste YouTube or video URL..."
+          oninput="clearResults()" />
+        <button class="btn-convert" id="urlConvertBtn" onclick="convertUrl()">CONVERT</button>
+      </div>
+      <div class="quality-row">
+        <span class="quality-label">Quality:</span>
+        <div class="quality-opts" id="urlQuality">
+          <button class="q-btn active" onclick="setQuality('url','high',this)">320 kbps</button>
+          <button class="q-btn" onclick="setQuality('url','medium',this)">192 kbps</button>
+          <button class="q-btn" onclick="setQuality('url','low',this)">128 kbps</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- File Panel -->
+    <div class="tab-panel" id="panel-file">
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+        ondragover="e=>{ e.preventDefault(); this.classList.add('dragover'); }"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleDrop(event)">
+        <div class="drop-icon">🎬</div>
+        <div class="drop-title">Drop your video file here</div>
+        <div class="drop-sub">or <span>click to browse</span><br>MP4, MKV, AVI, MOV, WebM, WAV, FLAC &amp; more</div>
+      </div>
+      <input type="file" id="fileInput" accept=".mp4,.mkv,.avi,.mov,.webm,.flv,.wmv,.m4a,.ogg,.wav,.aac,.flac"
+        onchange="handleFileSelect(event)"/>
+
+      <div class="selected-file" id="selectedFile">
+        <span class="file-icon">🎬</span>
+        <div class="file-info">
+          <div class="file-name" id="selectedFileName"></div>
+          <div class="file-size" id="selectedFileSize"></div>
+        </div>
+        <button class="file-remove" onclick="clearFile()">✕</button>
+      </div>
+
+      <div class="quality-row">
+        <span class="quality-label">Quality:</span>
+        <div class="quality-opts" id="fileQuality">
+          <button class="q-btn active" onclick="setQuality('file','high',this)">320 kbps</button>
+          <button class="q-btn" onclick="setQuality('file','medium',this)">192 kbps</button>
+          <button class="q-btn" onclick="setQuality('file','low',this)">128 kbps</button>
+        </div>
+      </div>
+
+      <div style="margin-top:20px">
+        <button class="btn-convert" id="fileConvertBtn" onclick="convertFile()" style="width:100%">CONVERT TO MP3</button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-area" id="progressArea">
+      <div class="progress-header">
+        <span class="progress-status" id="progressStatus">Downloading...</span>
+        <span class="progress-pct" id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-box" id="resultBox">
+      <span class="result-icon">🎵</span>
+      <div class="result-info">
+        <div class="result-title">✓ Conversion Complete</div>
+        <div class="result-name" id="resultName"></div>
+      </div>
+      <a class="btn-download" id="downloadLink" href="#" download>⬇ DOWNLOAD</a>
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <div class="formats">
+    <div class="formats-label">Supported Input Formats</div>
+    <div class="format-tags">
+      <span class="format-tag">YouTube</span>
+      <span class="format-tag">MP4</span>
+      <span class="format-tag">MKV</span>
+      <span class="format-tag">AVI</span>
+      <span class="format-tag">MOV</span>
+      <span class="format-tag">WebM</span>
+      <span class="format-tag">FLV</span>
+      <span class="format-tag">WAV</span>
+      <span class="format-tag">FLAC</span>
+      <span class="format-tag">M4A</span>
+      <span class="format-tag">AAC</span>
+      <span class="format-tag">OGG</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:5050';
+let currentQuality = { url: 'high', file: 'high' };
+let selectedFile = null;
+let pollTimer = null;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0 && tab==='url') || (i===1 && tab==='file')));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${tab}`).classList.add('active');
+  clearResults();
+}
+
+function setQuality(type, q, btn) {
+  currentQuality[type] = q;
+  btn.closest('.quality-opts').querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function clearResults() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  document.getElementById('progressArea').classList.remove('visible');
+  document.getElementById('resultBox').classList.remove('visible');
+  document.getElementById('errorBox').classList.remove('visible');
+}
+
+function showProgress(status, pct) {
+  const area = document.getElementById('progressArea');
+  area.classList.add('visible');
+  document.getElementById('progressStatus').textContent = status;
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function showResult(filename, fileId) {
+  document.getElementById('progressArea').classList.remove('visible');
+  const box = document.getElementById('resultBox');
+  box.classList.add('visible');
+  document.getElementById('resultName').textContent = filename;
+  document.getElementById('downloadLink').href = `${API}/api/download/${fileId}`;
+  document.getElementById('downloadLink').setAttribute('download', filename);
+}
+
+function showError(msg) {
+  document.getElementById('progressArea').classList.remove('visible');
+  const box = document.getElementById('errorBox');
+  box.classList.add('visible');
+  box.textContent = '⚠ ' + msg;
+}
+
+function pollJob(jobId, btn, originalLabel) {
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`${API}/api/status/${jobId}`);
+      const job = await res.json();
+
+      const statusMap = { downloading: 'Downloading audio...', converting: 'Converting to MP3...', done: 'Done!' };
+      showProgress(statusMap[job.status] || job.status, job.progress || 0);
+
+      if (job.status === 'done') {
+        clearInterval(pollTimer);
+        showResult(job.filename, job.file_id);
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      } else if (job.status === 'error') {
+        clearInterval(pollTimer);
+        showError(job.error || 'Conversion failed');
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    } catch(e) {
+      clearInterval(pollTimer);
+      showError('Connection lost. Is the server running?');
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  }, 800);
+}
+
+async function convertUrl() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { showError('Please enter a URL'); return; }
+  clearResults();
+  const btn = document.getElementById('urlConvertBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  showProgress('Starting...', 0);
+
+  try {
+    const res = await fetch(`${API}/api/convert/url`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url, quality: currentQuality.url })
+    });
+    const data = await res.json();
+    if (data.error) { showError(data.error); btn.disabled=false; btn.textContent='CONVERT'; return; }
+    pollJob(data.job_id, btn, 'CONVERT');
+  } catch(e) {
+    showError('Cannot connect to server. Make sure server.py is running on port 5050.');
+    btn.disabled = false;
+    btn.textContent = 'CONVERT';
+  }
+}
+
+async function convertFile() {
+  if (!selectedFile) { showError('Please select a file'); return; }
+  clearResults();
+  const btn = document.getElementById('fileConvertBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  showProgress('Uploading...', 10);
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  formData.append('quality', currentQuality.file);
+
+  try {
+    const res = await fetch(`${API}/api/convert/file`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) { showError(data.error); btn.disabled=false; btn.textContent='CONVERT TO MP3'; return; }
+    pollJob(data.job_id, btn, 'CONVERT TO MP3');
+  } catch(e) {
+    showError('Cannot connect to server. Make sure server.py is running on port 5050.');
+    btn.disabled = false;
+    btn.textContent = 'CONVERT TO MP3';
+  }
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) setFile(file);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+}
+
+function setFile(file) {
+  selectedFile = file;
+  document.getElementById('dropZone').style.display = 'none';
+  const sf = document.getElementById('selectedFile');
+  sf.classList.add('visible');
+  document.getElementById('selectedFileName').textContent = file.name;
+  const mb = (file.size / 1024 / 1024).toFixed(1);
+  document.getElementById('selectedFileSize').textContent = `${mb} MB`;
+  clearResults();
+}
+
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('dropZone').style.display = '';
+  document.getElementById('selectedFile').classList.remove('visible');
+  clearResults();
+}
+
+// Drag over body
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.getElementById('dropZone').addEventListener('dragover', e => {
+  e.preventDefault(); e.stopPropagation();
+  document.getElementById('dropZone').classList.add('dragover');
+});
+</script>
+</body>
+</html>
